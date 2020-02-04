@@ -423,6 +423,18 @@ public class RocksDB extends RocksObject {
     return db;
   }
 
+
+  public static RocksDB openAsSecondary(final Options options, final String path, final String secondaryPath)
+      throws RocksDBException {
+      final RocksDB db = new RocksDB(openAsSecondary(options.nativeHandle_, path, secondaryPath));
+      db.storeOptionsInstance(options);
+      return db;
+  }
+
+  public void tryCatchUpWithPrimary() throws RocksDBException {
+    tryCatchUpWithPrimary(nativeHandle_);
+  }
+
   /**
    * This is similar to {@link #close()} except that it
    * throws an exception if any error occurs.
@@ -4108,6 +4120,13 @@ public class RocksDB extends RocksObject {
       final String path, final byte[][] columnFamilyNames,
       final long[] columnFamilyOptions
   ) throws RocksDBException;
+
+  // native methods
+  private native static long openAsSecondary(final long optionsHandle,
+      final String path, final String secondaryPath) throws RocksDBException;
+
+  // native methods
+  private native void tryCatchUpWithPrimary(final long handle) throws RocksDBException;  
 
   @Override protected native void disposeInternal(final long handle);
 

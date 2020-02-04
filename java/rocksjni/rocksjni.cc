@@ -200,6 +200,47 @@ jlongArray Java_org_rocksdb_RocksDB_open__JLjava_lang_String_2_3_3B_3J(
           rocksdb::DB::Open);
 }
 
+jlong rocksdb_openAsSecondary_helper(
+    JNIEnv* env, jlong jopt_handle, jstring jdb_path, jstring jdb_secondary_path,
+    std::function<rocksdb::Status(const rocksdb::Options&, const std::string&, const std::string&,
+                                  rocksdb::DB**)>
+        open_fn) {
+  const char* db_path = env->GetStringUTFChars(jdb_path, nullptr);
+  if (db_path == nullptr) {
+    // exception thrown: OutOfMemoryError
+    return 0;
+  }
+
+  const char* secondary_db_path = env->GetStringUTFChars(jdb_secondary_path, nullptr);
+
+  auto* opt = reinterpret_cast<rocksdb::Options*>(jopt_handle);
+  rocksdb::DB* db = nullptr;
+  rocksdb::Status s = open_fn(*opt, db_path, secondary_db_path, &db);
+
+  env->ReleaseStringUTFChars(jdb_path, db_path);
+  env->ReleaseStringUTFChars(jdb_secondary_path, secondary_db_path);
+
+  if (s.ok()) {
+    return reinterpret_cast<jlong>(db);
+  } else {
+    rocksdb::RocksDBExceptionJni::ThrowNew(env, s);
+    return 0;
+  }
+}
+
+/*
+ * Class:     org_rocksdb_RocksDB
+ * Method:    openAsSecondary
+ */ 
+jlong Java_org_rocksdb_RocksDB_openAsSecondary(
+  JNIEnv* env, jclass, jlong jopt_handle, jstring jdb_path, jstring jdb_secondary_path) {
+  return rocksdb_openAsSecondary_helper(
+    env, jopt_handle, jdb_path, jdb_secondary_path,
+    (rocksdb::Status(*)(const rocksdb::Options&, const std::string&, const std::string&,
+                          rocksdb::DB**)) &
+          rocksdb::DB::OpenAsSecondary);
+}
+
 /*
  * Class:     org_rocksdb_RocksDB
  * Method:    disposeInternal
@@ -3140,6 +3181,15 @@ JNIEXPORT void JNICALL Java_org_rocksdb_RocksDB_deleteFilesInRanges(
       db, column_family == nullptr ? db->DefaultColumnFamily() : column_family,
       rangesVector.data(), rangesVector.size(), include_end);
 
+  if (!s.ok()) {
+    rocksdb::RocksDBExceptionJni::ThrowNew(env, s);
+  }
+}
+
+void Java_org_rocksdb_RocksDB_tryCatchUpWithPrimary(
+    JNIEnv* env, jobject, jlong jhandle) {
+  auto* db = reinterpret_cast<rocksdb::DB*>(jhandle);
+  rocksdb::Status s = db->TryCatchUpWithPrimary();
   if (!s.ok()) {
     rocksdb::RocksDBExceptionJni::ThrowNew(env, s);
   }
